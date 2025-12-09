@@ -30,4 +30,8 @@ public class TransacaoService {
     public List<TransacaoRequest> buscarTransacoes() {
         return transacoes;
     }
+
+    public void limparTransacoes() {
+        transacoes.clear();
+    }
 }
