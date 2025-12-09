@@ -1,9 +1,11 @@
 package com.leonardof108.TransactionStatsAPI.api.dto;
 
+import java.math.BigDecimal;
+
 public record EstatisticaResponse(
         long count,
-        double sum,
-        double avg,
-        double min,
-        double max
+        BigDecimal sum,
+        BigDecimal avg,
+        BigDecimal min,
+        BigDecimal max
 ) {}
