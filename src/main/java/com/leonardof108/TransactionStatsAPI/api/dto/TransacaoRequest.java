@@ -1,8 +1,10 @@
 package com.leonardof108.TransactionStatsAPI.api.dto;
 
-import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PastOrPresent;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 
@@ -10,9 +12,10 @@ import java.time.OffsetDateTime;
 // strict json format, no future dates, non-negative values
 public record TransacaoRequest(
         @NotNull(message = "Valor is mandatory")
-        @Min(value = 0, message = "Valor cannot be negative")
-        Double valor,
+        @DecimalMin(value = "0.0", message = "Valor cannot be negative")
+        BigDecimal valor,
 
         @NotNull(message = "DataHora is mandatory")
+        @PastOrPresent(message = "DataHora cannot be in the future")
         OffsetDateTime dataHora
 ) {}
