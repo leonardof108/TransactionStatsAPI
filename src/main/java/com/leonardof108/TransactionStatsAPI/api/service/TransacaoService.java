@@ -1,36 +1,23 @@
 package com.leonardof108.TransactionStatsAPI.api.service;
 
 import com.leonardof108.TransactionStatsAPI.api.dto.EstatisticaResponse;
-import com.leonardof108.TransactionStatsAPI.api.dto.TransacaoRequest;import com.leonardof108.TransactionStatsAPI.api.exception.UnprocessableEntityException;
+import com.leonardof108.TransactionStatsAPI.api.dto.TransacaoRequest;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.DoubleSummaryStatistics;
-import java.util.List;
+import java.util.concurrent.ConcurrentNavigableMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 
-
-// we'll store everything in a thread-safe list
 @Service
 public class TransacaoService {
 
-    // Thread-safe list to replace DB
-    private final List<TransacaoRequest> transacoes = Collections.synchronizedList(new ArrayList<>());
+    private final ConcurrentNavigableMap<OffsetDateTime, BigDecimal> transacoes = new ConcurrentSkipListMap<>();
 
     public void adicionarTransacao(TransacaoRequest transacao) {
-        // Validation - Transaction must not be in the future
-        if (transacao.dataHora().isAfter(OffsetDateTime.now())) {
-            throw new UnprocessableEntityException();
-        }
-
-        // Validation - Transaction must happen in the past
-
-        transacoes.add(transacao);
-    }
-
-    public List<TransacaoRequest> buscarTransacoes() {
-        return transacoes;
+        transacoes.put(transacao.dataHora(), transacao.valor());
     }
 
     public void limparTransacoes() {
@@ -38,28 +25,32 @@ public class TransacaoService {
     }
 
     public EstatisticaResponse calcularEstatisticas(int intervaloSegundos) {
-        OffsetDateTime corteTempo = OffsetDateTime.now().minusSeconds(intervaloSegundos);
+        OffsetDateTime agora = OffsetDateTime.now();
+        OffsetDateTime limite = agora.minusSeconds(intervaloSegundos);
 
-        // Synchronized block to ensure thread safety during stream processing
-        synchronized (transacoes) {
-            DoubleSummaryStatistics stats = transacoes.stream()
-                    .filter(t -> t.dataHora().isAfter(corteTempo)) // Filter last 60s
-                    .mapToDouble(TransacaoRequest::valor)
-                    .summaryStatistics();
+        ConcurrentNavigableMap<OffsetDateTime, BigDecimal> transacoesRecentes = transacoes.subMap(limite, true, agora, true);
 
-            if (stats.getCount() == 0) {
-                return new EstatisticaResponse(0, 0.0, 0.0, 0.0, 0.0);
-            }
-
-            return new EstatisticaResponse(
-                    stats.getCount(),
-                    stats.getSum(),
-                    stats.getAverage(),
-                    stats.getMin(),
-                    stats.getMax()
-            );
+        if (transacoesRecentes.isEmpty()) {
+            return new EstatisticaResponse(0, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
         }
+
+        long count = transacoesRecentes.size();
+        BigDecimal sum = BigDecimal.ZERO;
+        BigDecimal min = null;
+        BigDecimal max = null;
+
+        for (BigDecimal valor : transacoesRecentes.values()) {
+            sum = sum.add(valor);
+            if (min == null || valor.compareTo(min) < 0) {
+                min = valor;
+            }
+            if (max == null || valor.compareTo(max) > 0) {
+                max = valor;
+            }
+        }
+
+        BigDecimal avg = sum.divide(BigDecimal.valueOf(count), 2, RoundingMode.HALF_UP);
+
+        return new EstatisticaResponse(count, sum, avg, min, max);
     }
 }
-
-
