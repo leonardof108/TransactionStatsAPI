@@ -1,95 +1,132 @@
-# Transaction Statistics API
+# 🚀 Transaction Statistics - Itau Challenge
 
-This is a RESTful API developed as a programming challenge. The API allows clients to post financial transactions and retrieve real-time statistics for transactions made within the last 60 seconds.
+A high-performance, real-time financial monitoring system. This project consists of a **Spring Boot** backend API optimized for O(1) time complexity and a modern **React** frontend dashboard.
 
-The entire application is designed to be lightweight and performant, storing all data in-memory without relying on any external databases or caches.
+![Project Status](https://img.shields.io/badge/status-complete-green)
+![Java](https://img.shields.io/badge/Java-17-orange)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3-brightgreen)
+![React](https://img.shields.io/badge/React-18-blue)
+![License](https://img.shields.io/badge/license-MIT-grey)
 
-## Technologies Used
+## ✨ Key Features
 
-- **Java 17**: The core programming language.
-- **Spring Boot**: For creating the RESTful API and managing dependencies.
-- **Maven**: For project build and dependency management.
+- **O(1) Performance:** The statistics calculation uses a **Circular Buffer (Ring Buffer)** pattern instead of iterating over lists. This ensures constant time complexity for generating stats, regardless of transaction volume.
+- **Thread Safety:** Fully synchronized backend handling concurrent requests without race conditions.
+- **Real-Time Dashboard:** A React-based UI that polls the API to visualize the 60-second sliding window in real-time.
+- **Memory Efficient:** Fixed memory footprint (60 buckets) preventing memory leaks over time.
 
-## How to Build and Run
+---
+
+## 🛠️ Tech Stack
+
+### Backend
+- **Java 17**
+- **Spring Boot 3** (Web, Validation)
+- **Maven**
+- **JUnit 5** (Testing)
+
+### Frontend
+- **React** (Vite)
+- **TypeScript**
+- **Tailwind CSS**
+- **Shadcn/UI** (Component Library)
+
+---
+
+## 🚀 How to Run
 
 ### Prerequisites
+- Java 17+
+- Node.js & npm (for the frontend)
 
-- Java 17 (or a newer version)
-- Apache Maven
+### 1️⃣ Start the Backend
 
-### Steps
+The backend runs on port `8080`.
 
-1.  **Clone the repository:**
-    ```bash
-    git clone <your-repository-url>
-    cd TransactionStatsAPI
-    ```
+```bash
+# Clone the repository
+git clone https://github.com/leonardof108/transactionstatsapi.git
+cd transactionstatsapi
 
-2.  **Build the project using Maven:**
-    ```bash
-    mvn clean install
-    ```
+# Build and Run
+./mvnw spring-boot:run
+```
 
-3.  **Run the application:**
-    ```bash
-    java -jar target/TransactionStatsAPI-0.0.1-SNAPSHOT.jar
-    ```
+### 2️⃣ Start the Frontend
 
-The API will start on `http://localhost:8080`.
+The frontend runs on port `3000` (or `5173` depending on Vite config).
 
-## API Endpoints
+Open a new terminal window:
 
-### 1. Create a Transaction
+```bash
+cd frontend
 
-This endpoint registers a new transaction. The transaction time is crucial, as statistics are calculated based on it.
+# Install dependencies
+npm install
 
-- **URL:** `/transacao`
-- **Method:** `POST`
-- **Headers:**
-  - `Content-Type: application/json`
-- **Body:**
+# Start development server
+npm run dev
+```
 
-  ```json
-  {
-      "valor": "123.45",
-      "dataHora": "2024-07-29T14:20:50.123-03:00"
-  }
-  ```
+Visit the URL shown in your terminal (e.g., `http://localhost:3000`) to access the dashboard.
 
-  - `valor`: The transaction amount (must be non-negative).
-  - `dataHora`: The exact timestamp of the transaction in ISO 8601 format (must not be in the future).
+---
 
-- **Responses:**
-  - `201 Created`: The transaction was successfully created.
-  - `400 Bad Request`: The request body is malformed or contains invalid JSON.
-  - `422 Unprocessable Entity`: The transaction fails validation (e.g., negative amount, future date).
+## 🔌 API Endpoints
+
+The API follows a strict contract for the coding challenge.
+
+### 1. Create Transaction
+
+**POST** `/transacao`
+
+Receives a transaction. Returns `201` if successful, `422` if the date is in the future or invalid.
+
+**Body:**
+```json
+{
+  "valor": 123.45,
+  "dataHora": "2024-10-05T14:30:00.000Z"
+}
+```
+
+---
 
 ### 2. Get Statistics
 
-This endpoint returns statistics for all transactions that occurred in the last 60 seconds.
+**GET** `/estatistica`
 
-- **URL:** `/estatistica`
-- **Method:** `GET`
-- **Responses:**
-  - `200 OK`: Returns a JSON object with the statistics.
+Returns stats for the last 60 seconds.
 
-    ```json
-    {
-        "count": 10,
-        "sum": 1234.56,
-        "avg": 123.46,
-        "min": 12.34,
-        "max": 500.00
-    }
-    ```
-    If no transactions occurred in the last 60 seconds, all values will be zero.
-    - **Note:** When providing `dataHora` in the `POST /transacao` endpoint, ensure the `OffsetDateTime` includes the correct timezone offset. For example, if the current date/time in Brazil is `2025-07-29T12:54:30Z` (UTC-03:00), the `dataHora` in the payload should reflect this offset (e.g., `2025-07-29T15:54:00Z`). The statistics calculation considers transactions within 60 seconds of the server's current time.
+**Response:**
+```json
+{
+  "count": 10,
+  "sum": 1234.56,
+  "avg": 123.45,
+  "min": 10.00,
+  "max": 500.00
+}
+```
 
-### 3. Delete All Transactions
+---
 
-This endpoint clears all transaction data from memory.
+### 3. Clear Transactions
 
-- **URL:** `/transacao`
-- **Method:** `DELETE`
-- **Responses:**
-  - `200 OK`: All transactions were successfully deleted.
+**DELETE** `/transacao`
+
+Wipes the memory buffer completely.
+
+---
+
+## 🧠 Architecture Note: The "Bucket" Logic
+
+To meet the requirement of high performance without a database, this application does not store a list of transactions.
+
+Instead, it allocates **60 Buckets** (one for each second of the minute).
+
+- **Input:** When a transaction arrives for second `:45`, it is added to `Bucket[45]`.
+- **Output:** When stats are requested, we sum the valid buckets.
+- **Cleanup:** If a bucket holds data older than 60 seconds, it is automatically overwritten by new incoming data (**Lazy Reset**).
+
+This guarantees that memory usage never grows and calculation speed never degrades, achieving **O(1)** complexity.
