@@ -7,17 +7,17 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.OffsetDateTime;
-import java.util.DoubleSummaryStatistics;
-import java.util.concurrent.ConcurrentNavigableMap;
-import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 @Service
 public class TransacaoService {
 
-    private final ConcurrentNavigableMap<OffsetDateTime, BigDecimal> transacoes = new ConcurrentSkipListMap<>();
+    private final List<TransacaoRequest> transacoes = Collections.synchronizedList(new ArrayList<>());
 
     public void adicionarTransacao(TransacaoRequest transacao) {
-        transacoes.put(transacao.dataHora(), transacao.valor());
+        transacoes.add(transacao);
     }
 
     public void limparTransacoes() {
@@ -28,26 +28,32 @@ public class TransacaoService {
         OffsetDateTime agora = OffsetDateTime.now();
         OffsetDateTime limite = agora.minusSeconds(intervaloSegundos);
 
-        ConcurrentNavigableMap<OffsetDateTime, BigDecimal> transacoesRecentes = transacoes.subMap(limite, true, agora, true);
+        List<TransacaoRequest> copiaTransacoes;
+        synchronized (transacoes) {
+            copiaTransacoes = new ArrayList<>(transacoes);
+        }
 
-        if (transacoesRecentes.isEmpty()) {
+        List<BigDecimal> valoresRecentes = copiaTransacoes.stream()
+                .filter(t -> t.dataHora().isAfter(limite) && !t.dataHora().isAfter(agora))
+                .map(TransacaoRequest::valor)
+                .toList();
+
+        if (valoresRecentes.isEmpty()) {
             return new EstatisticaResponse(0, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
         }
 
-        long count = transacoesRecentes.size();
-        BigDecimal sum = BigDecimal.ZERO;
-        BigDecimal min = null;
-        BigDecimal max = null;
+        long count = valoresRecentes.size();
 
-        for (BigDecimal valor : transacoesRecentes.values()) {
-            sum = sum.add(valor);
-            if (min == null || valor.compareTo(min) < 0) {
-                min = valor;
-            }
-            if (max == null || valor.compareTo(max) > 0) {
-                max = valor;
-            }
-        }
+        BigDecimal sum = valoresRecentes.stream()
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal min = valoresRecentes.stream()
+                .min(BigDecimal::compareTo)
+                .orElse(BigDecimal.ZERO);
+
+        BigDecimal max = valoresRecentes.stream()
+                .max(BigDecimal::compareTo)
+                .orElse(BigDecimal.ZERO);
 
         BigDecimal avg = sum.divide(BigDecimal.valueOf(count), 2, RoundingMode.HALF_UP);
 
