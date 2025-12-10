@@ -3,17 +3,27 @@ import { Transaction, Statistics } from '@/types/transaction';
 import { toast } from "sonner";
 
 export function useTransactions() {
-  // We keep a local list just for the UI "Recent List" visual,
-  // but the math will come from the server.
   const [transactions, setTransactions] = useState<Transaction[]>([]);
 
-  // This state now comes from the Java Backend
   const [statistics, setStatistics] = useState<Statistics>({
     count: 0, sum: 0, avg: 0, min: 0, max: 0
   });
 
-  // 1. POLL STATISTICS (The Heartbeat)
-  // We fetch from Java every 1 second to see the numbers update
+  // Helper: Checks which transactions are younger than 60s
+  const updateRecency = useCallback(() => {
+    const now = new Date().getTime();
+    setTransactions(prev => prev.map(t => {
+      const txTime = new Date(t.dataHora).getTime();
+      const diffSeconds = (now - txTime) / 1000;
+      // It is recent if less than 60s passed
+      const isRecent = diffSeconds < 60;
+
+      // Only update if value changed (performance optimization)
+      return t.isRecent === isRecent ? t : { ...t, isRecent };
+    }));
+  }, []);
+
+  // 1. POLL STATISTICS & UPDATE UI COLORS
   const fetchStats = useCallback(async () => {
     try {
       const response = await fetch('http://localhost:8080/estatistica');
@@ -27,12 +37,18 @@ export function useTransactions() {
   }, []);
 
   useEffect(() => {
-    fetchStats(); // Initial fetch
-    const interval = setInterval(fetchStats, 1000); // Poll every 1s
-    return () => clearInterval(interval);
-  }, [fetchStats]);
+    fetchStats();
+    updateRecency();
 
-  // 2. ADD TRANSACTION (POST)
+    const interval = setInterval(() => {
+      fetchStats();    // Get new numbers from Java
+      updateRecency(); // Update Orange/Grey colors in UI
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [fetchStats, updateRecency]);
+
+  // 2. ADD TRANSACTION
   const addTransaction = useCallback(async (valor: number, dataHora: string) => {
     try {
       const response = await fetch('http://localhost:8080/transacao', {
@@ -42,15 +58,14 @@ export function useTransactions() {
       });
 
       if (response.status === 201) {
-        // Success: Update local UI list strictly for display purposes
         const newTransaction: Transaction = {
             id: crypto.randomUUID(),
             valor,
             dataHora,
+            isRecent: true, // <--- Starts as Orange!
         };
         setTransactions(prev => [newTransaction, ...prev]);
 
-        // Force an immediate stats refresh
         fetchStats();
         return { success: true };
       } else if (response.status === 422) {
@@ -63,12 +78,12 @@ export function useTransactions() {
     }
   }, [fetchStats]);
 
-  // 3. CLEAR TRANSACTIONS (DELETE)
+  // 3. CLEAR TRANSACTIONS
   const clearTransactions = useCallback(async () => {
     try {
       await fetch('http://localhost:8080/transacao', { method: 'DELETE' });
-      setTransactions([]); // Clear local UI
-      fetchStats(); // Update stats to zero
+      setTransactions([]);
+      fetchStats();
       toast.success("Memória do servidor limpa!");
     } catch (e) {
       toast.error("Erro ao limpar dados no servidor");
@@ -76,8 +91,8 @@ export function useTransactions() {
   }, [fetchStats]);
 
   return {
-    transactions, // Still used by your UI list
-    statistics,   // Now strictly from Java
+    transactions,
+    statistics,
     addTransaction,
     clearTransactions,
     totalCount: transactions.length,
