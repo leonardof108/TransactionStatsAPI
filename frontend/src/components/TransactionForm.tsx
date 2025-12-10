@@ -3,34 +3,45 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Calendar, DollarSign } from 'lucide-react';
+import { Plus, Calendar, DollarSign, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface TransactionFormProps {
-  onSubmit: (valor: number, dataHora: string) => { success: boolean; error?: string };
+  onSubmit: (valor: number, dataHora: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 export function TransactionForm({ onSubmit }: TransactionFormProps) {
   const [valor, setValor] = useState('');
   const [dataHora, setDataHora] = useState('');
+  const [loading, setLoading] = useState(false); // Add loading state
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => { // Mark as async
     e.preventDefault();
+    setLoading(true);
 
-    const valorNumber = parseFloat(valor);
-    const result = onSubmit(valorNumber, dataHora);
+    try {
+      const valorNumber = parseFloat(valor);
 
-    if (result.success) {
-      toast.success('Transação registrada com sucesso!');
-      setValor('');
-      setDataHora('');
-    } else {
-      toast.error(result.error || 'Erro ao registrar transação');
+      // WAIT for the Java Backend to respond
+      const result = await onSubmit(valorNumber, dataHora);
+
+      if (result.success) {
+        toast.success('Transação registrada com sucesso!');
+        setValor('');
+        setDataHora('');
+      } else {
+        toast.error(result.error || 'Erro ao registrar transação');
+      }
+    } catch (error) {
+      toast.error("Erro interno no frontend");
+    } finally {
+      setLoading(false);
     }
   };
 
   const setCurrentDateTime = () => {
     const now = new Date();
+    // Adjust to local timezone string for the input field
     const offset = now.getTimezoneOffset();
     const localDate = new Date(now.getTime() - offset * 60000);
     setDataHora(localDate.toISOString().slice(0, 16));
@@ -64,6 +75,7 @@ export function TransactionForm({ onSubmit }: TransactionFormProps) {
                 onChange={(e) => setValor(e.target.value)}
                 className="pl-10 h-11"
                 required
+                disabled={loading}
               />
             </div>
           </div>
@@ -81,6 +93,7 @@ export function TransactionForm({ onSubmit }: TransactionFormProps) {
                 onChange={(e) => setDataHora(e.target.value)}
                 className="pl-10 h-11"
                 required
+                disabled={loading}
               />
             </div>
             <Button
@@ -89,14 +102,15 @@ export function TransactionForm({ onSubmit }: TransactionFormProps) {
               size="sm"
               onClick={setCurrentDateTime}
               className="text-xs text-accent hover:text-accent/80"
+              disabled={loading}
             >
               Usar data/hora atual
             </Button>
           </div>
 
-          <Button type="submit" variant="accent" className="w-full h-11">
-            <Plus className="h-4 w-4" />
-            Registrar Transação
+          <Button type="submit" variant="accent" className="w-full h-11" disabled={loading}>
+            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            {loading ? "Registrando..." : "Registrar Transação"}
           </Button>
         </form>
       </CardContent>
