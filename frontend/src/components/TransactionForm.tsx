@@ -15,29 +15,33 @@ export function TransactionForm({ onSubmit }: TransactionFormProps) {
   const [dataHora, setDataHora] = useState('');
   const [loading, setLoading] = useState(false); // Add loading state
 
-  const handleSubmit = async (e: React.FormEvent) => { // Mark as async
-    e.preventDefault();
-    setLoading(true);
+  const handleSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setLoading(true);
 
-    try {
-      const valorNumber = parseFloat(valor);
+      try {
+        const valorNumber = parseFloat(valor);
 
-      // WAIT for the Java Backend to respond
-      const result = await onSubmit(valorNumber, dataHora);
+        const dateObj = new Date(dataHora);
 
-      if (result.success) {
-        toast.success('Transação registrada com sucesso!');
-        setValor('');
-        setDataHora('');
-      } else {
-        toast.error(result.error || 'Erro ao registrar transação');
+        const dataIso = dateObj.toISOString();
+
+        const result = await onSubmit(valorNumber, dataIso);
+
+        if (result.success) {
+          toast.success('Transação registrada com sucesso!');
+          setValor('');
+          setDataHora('');
+        } else {
+          toast.error(result.error || 'Erro ao registrar transação');
+        }
+      } catch (error) {
+        console.error(error); // debug
+        toast.error("Erro interno no frontend");
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      toast.error("Erro interno no frontend");
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
   const setCurrentDateTime = () => {
     const now = new Date();
