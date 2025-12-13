@@ -6,16 +6,17 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Clock;
 import java.time.OffsetDateTime;
 
 @Service
 public class TransacaoService {
 
-    // 60 buckets, one for each second of the minute
+    private final Clock clock;
     private final Bucket[] buckets = new Bucket[60];
 
-    public TransacaoService() {
-        // Initialize empty buckets to avoid null checks later
+    public TransacaoService(Clock clock) {
+        this.clock = clock;
         for (int i = 0; i < 60; i++) {
             buckets[i] = new Bucket();
         }
@@ -23,22 +24,18 @@ public class TransacaoService {
 
     public void adicionarTransacao(TransacaoRequest transacao) {
         OffsetDateTime dataHora = transacao.dataHora();
-        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime now = OffsetDateTime.now(clock);
 
-        // The validation for future dates is handled by annotations on the DTO.
-        // This check provides an O(1) optimization to ignore old transactions immediately.
         if (dataHora.isBefore(now.minusSeconds(60))) {
             return;
         }
 
         long timestamp = dataHora.toEpochSecond();
-        int index = (int) (timestamp % 60); // Calculates the "slot" (0 to 59)
+        int index = (int) (timestamp % 60);
 
         Bucket bucket = buckets[index];
         
-        // Thread-safe update of the bucket
         synchronized (bucket) {
-            // If the bucket holds data from a previous minute (based on its timestamp), reset it.
             if (bucket.timestamp != timestamp) {
                 bucket.reset(timestamp);
             }
@@ -49,7 +46,7 @@ public class TransacaoService {
     public void limparTransacoes() {
         for (Bucket bucket : buckets) {
             synchronized (bucket) {
-                bucket.reset(0); // Resetting to a '0' timestamp effectively clears it.
+                bucket.reset(0);
             }
         }
     }
@@ -60,12 +57,10 @@ public class TransacaoService {
         BigDecimal min = null;
         BigDecimal max = null;
 
-        long currentTime = OffsetDateTime.now().toEpochSecond();
+        long currentTime = OffsetDateTime.now(clock).toEpochSecond();
 
-        // This loop is always 60 iterations, ensuring O(1) complexity.
         for (Bucket bucket : buckets) {
             synchronized (bucket) {
-                // Only include buckets that are within the current 60-second sliding window.
                 if (bucket.timestamp > 0 && currentTime - bucket.timestamp < 60) {
                     count += bucket.count;
                     sum = sum.add(bucket.sum);
@@ -85,10 +80,14 @@ public class TransacaoService {
     }
 
     /**
-     * Inner class to hold aggregated statistics for a single second.
+     * This method is package-private and is intended only for testing purposes.
      */
-    private static class Bucket {
-        public long timestamp; // The epoch second this bucket represents.
+    Bucket[] getBucketsForTest() {
+        return buckets;
+    }
+
+    static class Bucket {
+        public long timestamp;
         public BigDecimal sum = BigDecimal.ZERO;
         public BigDecimal min = null;
         public BigDecimal max = null;
