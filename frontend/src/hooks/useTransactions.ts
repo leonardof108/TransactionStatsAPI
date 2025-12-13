@@ -9,6 +9,8 @@ export function useTransactions() {
     count: 0, sum: 0, avg: 0, min: 0, max: 0
   });
 
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
+
   // Helper: Checks which transactions are younger than 60s
   const updateRecency = useCallback(() => {
     const now = new Date().getTime();
@@ -26,7 +28,7 @@ export function useTransactions() {
   // 1. POLL STATISTICS & UPDATE UI COLORS
   const fetchStats = useCallback(async () => {
     try {
-      const response = await fetch('http://localhost:8080/estatistica');
+      const response = await fetch(`${API_BASE_URL}/estatistica`);
       if (response.ok) {
         const data = await response.json();
         setStatistics(data);
@@ -51,7 +53,7 @@ export function useTransactions() {
   // 2. ADD TRANSACTION
   const addTransaction = useCallback(async (valor: number, dataHora: string) => {
     try {
-      const response = await fetch('http://localhost:8080/transacao', {
+      const response = await fetch(`${API_BASE_URL}/transacao`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ valor, dataHora })
@@ -81,7 +83,7 @@ export function useTransactions() {
   // 3. CLEAR TRANSACTIONS
   const clearTransactions = useCallback(async () => {
     try {
-      await fetch('http://localhost:8080/transacao', { method: 'DELETE' });
+      await fetch(`${API_BASE_URL}/transacao`, { method: 'DELETE' });
       setTransactions([]);
       fetchStats();
       toast.success("Memória do servidor limpa!");
