@@ -9,7 +9,17 @@ export function useTransactions() {
     count: 0, sum: 0, avg: 0, min: 0, max: 0
   });
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
+  const getApiBaseUrl = () => {
+    const envUrl = import.meta.env.VITE_API_URL;
+    // In production (e.g., Vercel), and if VITE_API_URL is not a full URL, default to the Render service URL.
+    if (import.meta.env.PROD) {
+      return (envUrl && envUrl.startsWith('http')) ? envUrl : 'https://transactionstatsapi.onrender.com';
+    }
+    // In development, default to localhost.
+    return envUrl || 'http://localhost:8080';
+  };
+
+  const API_BASE_URL = getApiBaseUrl();
 
   // Helper: Checks which transactions are younger than 60s
   const updateRecency = useCallback(() => {
