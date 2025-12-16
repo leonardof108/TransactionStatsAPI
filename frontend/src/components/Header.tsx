@@ -13,7 +13,7 @@ export function Header() {
               Transaction Statistics
             </h1>
             <p className="text-sm text-muted-foreground">
-              Desafio Itaú - API REST
+              API REST - Obs.: Backend demora alguns segundos para iniciar e para depois de alguns minutos de inatividade.
             </p>
           </div>
         </div>
